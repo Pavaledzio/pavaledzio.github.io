@@ -118,8 +118,8 @@ select option{background:var(--paper)}
 .cal-nav button:hover{background:var(--cream2)}
 .cal-table{width:100%;border-collapse:collapse;table-layout:fixed}
 .cal-table th{font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--ink4);text-align:center;padding:4px 0;width:14.28%}
-.cal-table td{text-align:center;padding:2px;width:14.28%}
-.cal-cell{width:100%;aspect-ratio:1;border-radius:5px;border:0.5px solid transparent;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;transition:all .1s;font-size:13px;color:var(--ink2);line-height:1;gap:2px}
+.cal-table td{text-align:center;padding:2px;width:14.28%;height:44px;vertical-align:middle}
+.cal-cell{width:100%;height:40px;border-radius:5px;border:0.5px solid transparent;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;transition:all .1s;font-size:13px;color:var(--ink2);line-height:1;gap:2px}
 .cal-cell:hover{background:var(--cream2);border-color:var(--brd)}
 .cal-cell.today{border-color:var(--brd2);font-weight:700;color:var(--ink)}
 .cal-cell.has-entry{background:var(--gold4);border-color:rgba(154,124,58,.2)}
@@ -359,22 +359,42 @@ let _entries = {};
 let _config = {};
 
 // ── AUTH ──
-window.loginGoogle = () => {
-  // Use redirect on mobile, popup on desktop
-  const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-  if(isMobile){
-    auth.signInWithRedirect(provider).catch(e => toast(e.message,'err'));
-  } else {
-    auth.signInWithPopup(provider).catch(e => {
-      // Fallback to redirect if popup fails
-      auth.signInWithRedirect(provider);
-    });
+window.loginGoogle = async () => {
+  const btn = document.querySelector('.btn-google');
+  btn.textContent = 'Conectando...';
+  btn.disabled = true;
+  try {
+    // Always try popup first, fall back to redirect
+    await auth.signInWithPopup(provider);
+  } catch(e) {
+    if(e.code === 'auth/popup-blocked' || e.code === 'auth/popup-closed-by-user' || e.code === 'auth/cancelled-popup-request') {
+      // Popup blocked - use redirect
+      btn.textContent = 'Redirigiendo...';
+      try {
+        await auth.signInWithRedirect(provider);
+      } catch(e2) {
+        toast('Error: ' + e2.message, 'err');
+        btn.textContent = 'Acceder con Google';
+        btn.disabled = false;
+      }
+    } else {
+      toast('Error: ' + e.code + ' ' + e.message, 'err');
+      btn.textContent = 'Acceder con Google';
+      btn.disabled = false;
+    }
   }
 };
 window.logout = () => { if(unsubSnap) unsubSnap(); auth.signOut(); };
 
 // Handle redirect result on page load
-auth.getRedirectResult().catch(e => { if(e.code !== 'auth/no-current-user') console.warn(e); });
+auth.getRedirectResult().then(result => {
+  if(result && result.user) console.log('Redirect login OK:', result.user.email);
+}).catch(e => {
+  if(e.code && e.code !== 'auth/no-current-user') {
+    toast('Error login: ' + e.code, 'err');
+    console.error('Redirect error:', e);
+  }
+});
 
 auth.onAuthStateChanged(async user => {
   const loginEl = document.getElementById('login-screen');
@@ -565,7 +585,7 @@ function renderCalendar(){
   let col=offset, row=0;
   // fill empties
   for(let i=0;i<offset;i++){
-    rows[0]+= '<td><div class="cal-cell" style="visibility:hidden">0</div></td>';
+    rows[0]+= '<td></td>';
   }
   for(let d=1;d<=days;d++){
     const entry=getEntry(calMonth+1,d);
