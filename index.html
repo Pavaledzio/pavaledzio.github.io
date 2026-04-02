@@ -359,8 +359,22 @@ let _entries = {};
 let _config = {};
 
 // ── AUTH ──
-window.loginGoogle = () => auth.signInWithPopup(provider).catch(e => toast(e.message,'err'));
+window.loginGoogle = () => {
+  // Use redirect on mobile, popup on desktop
+  const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+  if(isMobile){
+    auth.signInWithRedirect(provider).catch(e => toast(e.message,'err'));
+  } else {
+    auth.signInWithPopup(provider).catch(e => {
+      // Fallback to redirect if popup fails
+      auth.signInWithRedirect(provider);
+    });
+  }
+};
 window.logout = () => { if(unsubSnap) unsubSnap(); auth.signOut(); };
+
+// Handle redirect result on page load
+auth.getRedirectResult().catch(e => { if(e.code !== 'auth/no-current-user') console.warn(e); });
 
 auth.onAuthStateChanged(async user => {
   const loginEl = document.getElementById('login-screen');
